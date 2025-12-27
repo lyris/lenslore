@@ -1,7 +1,7 @@
 // Service Worker for LensLore PWA
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'lenslore-1.0.0-1766841648902';
+const CACHE_NAME = 'lenslore-1.0.0-1766845335728';
 const RUNTIME_CACHE = 'lenslore-runtime';
 // transformers.js 使用自己的缓存：'transformers-cache'
 const TRANSFORMERS_CACHE = 'transformers-cache';
@@ -18,7 +18,7 @@ const CORE_ASSETS = [
   './icons/icon-512.svg',
   './assets/asr-B9du3Hwl.js',
   './assets/config-D56GOaQ9.js',
-  './assets/main-CWfIK7PA.js',
+  './assets/main-CLX55aOe.js',
   './assets/ort-wasm-simd-threaded.jsep-B0T3yYHD.wasm',
   './assets/tts-DFWnvHXl.js',
   './assets/vendor-ai-fo6w6Voj.js',
@@ -121,6 +121,7 @@ self.addEventListener('activate', (event) => {
 
 // 辅助函数：规范化 HuggingFace URL，统一使用镜像 URL 作为缓存 key
 // 这样可以确保无论请求来自 huggingface.co 还是 hf.bitags.com，都能命中同一个缓存
+// 注意：transformers.js 已配置 env.remoteHost，实际请求会直接发往镜像
 function normalizeHFUrl(urlString) {
   return urlString.replace('https://huggingface.co', 'https://hf.bitags.com');
 }
@@ -130,8 +131,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 跨域请求（模型文件）：优先从 transformers.js 缓存读取
-  // 模型下载由主应用的 remote_host 配置控制，SW 只负责缓存查询
+  // 跨域请求（模型文件）：Service Worker 负责缓存管理
+  // transformers.js 的 env.useBrowserCache 依赖 SW 的 fetch 拦截和缓存
   if (url.origin !== location.origin) {
     event.respondWith(
       caches.open(TRANSFORMERS_CACHE).then((cache) => {
@@ -143,62 +144,50 @@ self.addEventListener('fetch', (event) => {
         });
 
         // 使用规范化的 URL 查询缓存
-        return cache.match(cacheKey, { ignoreSearch: true }).then((cachedResponse) => {
+        return cache.match(cacheKey, { ignoreSearch: true }).then(async (cachedResponse) => {
+          // 优先使用规范化 URL 查询
           if (cachedResponse) {
-            console.log('[SW] ✅ Serving from cache:', url.pathname);
+            console.log('[SW] ✅ Serving from cache (normalized):', url.pathname);
             return cachedResponse;
           }
 
-          // 如果请求的是 huggingface.co，重定向到镜像
-          let actualRequest = request;
-          if (url.hostname === 'huggingface.co') {
-            // 使用自建 Cloudflare Worker 镜像（支持 CORS）
-            const mirrorUrl = normalizeHFUrl(url.href);
-            console.log('[SW] 🔄 Redirecting to mirror:', url.href, '->', mirrorUrl);
-            actualRequest = new Request(mirrorUrl, {
-              method: request.method,
-              headers: request.headers,
-              mode: 'cors',
-              credentials: 'omit',
-              cache: request.cache,
-              redirect: 'follow'
-            });
+          // 回退：尝试用原始请求查询（兼容旧缓存）
+          const legacyResponse = await cache.match(request, { ignoreSearch: true });
+          if (legacyResponse) {
+            console.log('[SW] ✅ Serving from cache (legacy):', url.pathname);
+            return legacyResponse;
           }
 
-          // 缓存未命中，直接网络请求（transformers.js 会自动缓存）
-          console.log('[SW] ⬇️  Fetching:', actualRequest.url);
-          return fetch(actualRequest).then(async (response) => {
-            // 缓存响应（使用规范化的 URL 作为 key，确保缓存一致性）
-            // 重要：必须等待缓存操作完成，确保文件完整写入或完全不写入
-            if (response && response.status === 200) {
-              try {
-                // 克隆响应用于缓存（原始响应返回给调用者）
-                const responseToCache = response.clone();
+          // 缓存未命中，发起网络请求并缓存
+          console.log('[SW] ⬇️  Fetching from network:', request.url);
 
-                // 等待缓存操作完成（原子性保证）
-                // 使用规范化的 cacheKey，确保 huggingface.co 和 hf.bitags.com 映射到同一个缓存
+          try {
+            const response = await fetch(request);
+
+            // 只缓存成功的响应
+            if (response && response.status === 200) {
+              // 克隆响应用于缓存（原始响应返回给调用者）
+              const responseToCache = response.clone();
+
+              // 原子性缓存写入
+              try {
                 await cache.put(cacheKey, responseToCache);
-                console.log('[SW] ✅ Cached model file:', url.pathname, '(key:', normalizedUrl, ')');
-              } catch (error) {
-                // 缓存失败，删除可能不完整的条目
-                console.error('[SW] ❌ Failed to cache model file:', url.pathname, error);
-                try {
-                  await cache.delete(cacheKey);
-                  console.log('[SW] 🗑️  Deleted incomplete cache entry');
-                } catch (deleteError) {
-                  console.error('[SW] Failed to delete incomplete cache:', deleteError);
-                }
-                // 继续返回响应给调用者（即使缓存失败）
+                console.log('[SW] ✅ Cached:', url.pathname);
+              } catch (cacheError) {
+                console.error('[SW] ❌ Cache write failed:', url.pathname, cacheError);
+                // 删除可能不完整的缓存
+                await cache.delete(cacheKey).catch(() => {});
               }
             }
+
             return response;
-          }).catch((error) => {
-            console.error('[SW] Fetch failed:', actualRequest.url, error);
+          } catch (error) {
+            console.error('[SW] ❌ Fetch failed:', request.url, error);
             return new Response('Network error', {
               status: 503,
               statusText: 'Service Unavailable'
             });
-          });
+          }
         });
       })
     );

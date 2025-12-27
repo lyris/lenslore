@@ -860,18 +860,13 @@ class LensLoreApp {
             percentage = 100;
         }
 
-        // 更新进度条和文字
-        if (isDownloading && percentage === 0) {
-            // 文件正在下载但没有进度百分比，显示加载图标
-            progressPercentageEl.textContent = '⏳';
-            progressFill.style.width = '100%';
-            progressFill.style.animation = 'pulse 1.5s ease-in-out infinite';
-        } else {
-            // 有明确的进度百分比，正常显示
-            progressFill.style.width = `${percentage}%`;
-            progressPercentageEl.textContent = `${percentage}%`;
-            progressFill.style.animation = 'none';
-        }
+        // 更新进度条和文字 - 统一显示百分比
+        progressFill.style.width = `${percentage}%`;
+        progressPercentageEl.textContent = `${percentage}%`;
+        // 0% 时保持脉冲动画以指示下载活动
+        progressFill.style.animation = (isDownloading && percentage === 0)
+            ? 'pulse 1.5s ease-in-out infinite'
+            : 'none';
 
         // 更新文件名和大小信息
         if (sizeInfo) {
