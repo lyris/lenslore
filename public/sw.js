@@ -1,7 +1,7 @@
 // Service Worker for LensLore PWA
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'lenslore-1.0.0-1766840860057';
+const CACHE_NAME = 'lenslore-1.0.0-1766841648902';
 const RUNTIME_CACHE = 'lenslore-runtime';
 // transformers.js 使用自己的缓存：'transformers-cache'
 const TRANSFORMERS_CACHE = 'transformers-cache';
@@ -119,6 +119,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// 辅助函数：规范化 HuggingFace URL，统一使用镜像 URL 作为缓存 key
+// 这样可以确保无论请求来自 huggingface.co 还是 hf.bitags.com，都能命中同一个缓存
+function normalizeHFUrl(urlString) {
+  return urlString.replace('https://huggingface.co', 'https://hf.bitags.com');
+}
+
 // Fetch 事件：智能缓存策略
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -129,7 +135,15 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== location.origin) {
     event.respondWith(
       caches.open(TRANSFORMERS_CACHE).then((cache) => {
-        return cache.match(request, { ignoreSearch: true }).then((cachedResponse) => {
+        // 规范化 URL：统一使用镜像 URL 作为缓存 key
+        const normalizedUrl = normalizeHFUrl(request.url);
+        const cacheKey = new Request(normalizedUrl, {
+          method: request.method,
+          headers: request.headers
+        });
+
+        // 使用规范化的 URL 查询缓存
+        return cache.match(cacheKey, { ignoreSearch: true }).then((cachedResponse) => {
           if (cachedResponse) {
             console.log('[SW] ✅ Serving from cache:', url.pathname);
             return cachedResponse;
@@ -139,7 +153,7 @@ self.addEventListener('fetch', (event) => {
           let actualRequest = request;
           if (url.hostname === 'huggingface.co') {
             // 使用自建 Cloudflare Worker 镜像（支持 CORS）
-            const mirrorUrl = url.href.replace('https://huggingface.co', 'https://hf.bitags.com');
+            const mirrorUrl = normalizeHFUrl(url.href);
             console.log('[SW] 🔄 Redirecting to mirror:', url.href, '->', mirrorUrl);
             actualRequest = new Request(mirrorUrl, {
               method: request.method,
@@ -154,7 +168,7 @@ self.addEventListener('fetch', (event) => {
           // 缓存未命中，直接网络请求（transformers.js 会自动缓存）
           console.log('[SW] ⬇️  Fetching:', actualRequest.url);
           return fetch(actualRequest).then(async (response) => {
-            // 缓存响应（使用原始请求 URL 作为 key）
+            // 缓存响应（使用规范化的 URL 作为 key，确保缓存一致性）
             // 重要：必须等待缓存操作完成，确保文件完整写入或完全不写入
             if (response && response.status === 200) {
               try {
@@ -162,13 +176,14 @@ self.addEventListener('fetch', (event) => {
                 const responseToCache = response.clone();
 
                 // 等待缓存操作完成（原子性保证）
-                await cache.put(request, responseToCache);
-                console.log('[SW] ✅ Cached model file:', url.pathname);
+                // 使用规范化的 cacheKey，确保 huggingface.co 和 hf.bitags.com 映射到同一个缓存
+                await cache.put(cacheKey, responseToCache);
+                console.log('[SW] ✅ Cached model file:', url.pathname, '(key:', normalizedUrl, ')');
               } catch (error) {
                 // 缓存失败，删除可能不完整的条目
                 console.error('[SW] ❌ Failed to cache model file:', url.pathname, error);
                 try {
-                  await cache.delete(request);
+                  await cache.delete(cacheKey);
                   console.log('[SW] 🗑️  Deleted incomplete cache entry');
                 } catch (deleteError) {
                   console.error('[SW] Failed to delete incomplete cache:', deleteError);
