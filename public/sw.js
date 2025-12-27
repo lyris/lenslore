@@ -1,7 +1,7 @@
 // Service Worker for LensLore PWA
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'lenslore-1.0.0-1766839901785';
+const CACHE_NAME = 'lenslore-1.0.0-1766840860057';
 const RUNTIME_CACHE = 'lenslore-runtime';
 // transformers.js 使用自己的缓存：'transformers-cache'
 const TRANSFORMERS_CACHE = 'transformers-cache';
@@ -16,12 +16,12 @@ const CORE_ASSETS = [
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg',
-  './assets/asr-ZnmCJDD3.js',
+  './assets/asr-B9du3Hwl.js',
   './assets/config-D56GOaQ9.js',
-  './assets/main-B8Z1YOEV.js',
+  './assets/main-CWfIK7PA.js',
   './assets/ort-wasm-simd-threaded.jsep-B0T3yYHD.wasm',
-  './assets/tts-CNKLlAIp.js',
-  './assets/vendor-ai-B8xga8Jq.js',
+  './assets/tts-DFWnvHXl.js',
+  './assets/vendor-ai-fo6w6Voj.js',
   './assets/vendor-chinese-D42sZK8o.js',
   './assets/voices-B3UZyF-f.js'
 ];
