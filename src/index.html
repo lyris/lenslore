@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Browser-based image recognition and text-to-speech application">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" href="data:,">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+    <title>LensLore - Browser Vision & Speech</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background-color: #000;
+        }
+
+        #videoFeed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #subtitle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 92%;
+            max-width: 900px;
+            max-height: 55vh;
+            overflow: hidden;
+            text-align: center;
+            font-size: 20px;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            box-sizing: border-box;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.7));
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            line-height: 1.8;
+            word-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 当有摄像头运行时,字幕显示在底部 */
+        #subtitle.bottom-position {
+            top: auto;
+            bottom: 125px;
+            transform: translateX(-50%);
+        }
+
+        /* 可点击的图标样式 */
+        .clickable-icon {
+            cursor: pointer;
+            display: inline-block;
+            transition: all 0.2s ease;
+            padding: 0 3px;
+        }
+
+        .clickable-icon:hover {
+            transform: scale(1.3);
+            text-shadow: 0 0 8px rgba(255, 255, 0, 0.8);
+        }
+
+        .clickable-icon:active {
+            transform: scale(1.1);
+        }
+
+        /* 字幕片段样式 */
+        #subtitle .segment {
+            display: inline;
+            transition: opacity 0.3s ease;
+            font-size: 20px;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-weight: 600;
+        }
+
+        /* 闪光扫描动画 */
+        @keyframes sweep-shine {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        #subtitle .segment.current {
+            background: linear-gradient(
+                90deg,
+                #ffd700 0%,
+                #ffd700 40%,
+                rgba(255, 223, 128, 0.95) 50%,
+                #ffb700 60%,
+                #ffb700 100%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: sweep-shine 2s linear infinite;
+            font-weight: 600;
+            text-shadow: none;
+        }
+
+        #subtitle .segment.completed {
+            color: #ffd700;
+            opacity: 0.6;
+            font-size: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-weight: 600;
+            /* 明确停止动画和重置样式 */
+            animation: none !important;
+            background: none !important;
+            -webkit-text-fill-color: inherit !important;
+        }
+
+        /* 汉堡菜单按钮 */
+        #menuButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 45px;
+            height: 45px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 12;
+            transition: all 0.3s ease;
+            padding: 10px;
+            gap: 4px;
+        }
+
+        #menuButton:hover {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        #menuButton .bar {
+            width: 25px;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        /* 下拉菜单 */
+        #dropdownMenu {
+            position: absolute;
+            top: 65px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.9);
+            border-radius: 8px;
+            min-width: 200px;
+            display: none;
+            flex-direction: column;
+            z-index: 11;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        #dropdownMenu.active {
+            display: flex;
+        }
+
+        .menu-item {
+            padding: 15px 20px;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item-icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+
+        /* 底部控制栏 */
+        #bottomControls {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 11;
+        }
+
+        /* 当有摄像头时，控制栏在底部 */
+        #bottomControls.bottom-position {
+            top: auto;
+            bottom: 140px;
+        }
+
+        .control-button {
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            font-size: 24px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-button:hover {
+            background-color: rgba(0, 0, 0, 0.7);
+            transform: scale(1.05);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .control-button.active {
+            background-color: rgba(46, 204, 113, 0.7);
+            border-color: rgba(46, 204, 113, 1);
+        }
+
+        #imageUpload {
+            display: none;
+        }
+
+        #mirrorToggle,
+        #audioStatus,
+        #ttsButton,
+        #settingsButton,
+        #uploadButton,
+        #cameraToggle {
+            display: none;
+        }
+
+        #startButton {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90vw;
+            max-width: 400px;
+            padding: 15px 20px;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            z-index: 11;
+            transition: background-color 0.3s ease;
+        }
+
+        #startButton:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        @keyframes pulseAnimation {
+            0% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.03); }
+            100% { transform: translateX(-50%) scale(1); }
+        }
+
+        #startButton.start {
+            animation: pulseAnimation 2s infinite ease-in-out;
+        }
+
+        #startButton.stop {
+            animation: none;
+        }
+
+        #loadingStatus {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            z-index: 11;
+            font-size: 15px;
+            text-align: center;
+            display: none;
+            min-width: 300px;
+            max-width: 90vw;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        #progressContainer {
+            width: 100%;
+            margin-top: 10px;
+            max-height: 400px;
+            overflow-y: hidden;
+        }
+
+        .progress-item {
+            margin-bottom: 8px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .progress-item:last-child {
+            margin-bottom: 0;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        .progress-item.removing {
+            animation: slideOut 0.3s ease forwards;
+        }
+
+        .progress-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-file-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 8px;
+        }
+
+        .progress-percentage {
+            font-weight: bold;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* 不同阶段的颜色 */
+        .progress-fill.processor {
+            background: linear-gradient(90deg, #9b59b6, #8e44ad);
+        }
+
+        .progress-fill.model {
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+        }
+
+        .progress-fill.tts {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+
+        .progress-fill.complete {
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+        }
+
+        /* Pulse animation for downloading files without progress percentage */
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        #loadingStage {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 4px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 设置面板样式 */
+        #settingsPanel,
+        #aboutPanel {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #settingsPanel.active,
+        #aboutPanel.active {
+            display: flex;
+        }
+
+        .settings-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .settings-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .settings-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .settings-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .settings-section {
+            margin-bottom: 25px;
+        }
+
+        .settings-section h3 {
+            margin: 0 0 12px 0;
+            color: #555;
+            font-size: 16px;
+        }
+
+        .prompt-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .prompt-option:hover {
+            border-color: #667eea;
+            background: #f9f9ff;
+        }
+
+        .prompt-option.selected {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+
+        .prompt-option input[type="radio"] {
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .prompt-option label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .prompt-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .prompt-text {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .custom-prompt-section {
+            margin-top: 15px;
+            display: none; /* 默认隐藏 */
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-prompt-section textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        .custom-prompt-section textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .settings-item-label {
+            flex: 1;
+        }
+
+        .settings-item-label strong {
+            display: block;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .settings-item-desc {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+            margin-left: 12px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #667eea;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .device-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background-color: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            margin-left: 12px;
+            min-width: 180px;
+        }
+
+        .device-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .settings-save {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* About 面板样式 */
+        .about-text {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .about-text p {
+            margin: 8px 0;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .about-text strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <video id="videoFeed" autoplay playsinline></video>
+        <div id="subtitle">Initializing models...</div>
+        <div id="loadingStatus">
+            <div><span class="spinner"></span><span id="loadingText">Loading models...</span></div>
+            <div id="loadingStage"></div>
+            <!-- 文件下载进度条 -->
+            <div id="progressContainer"></div>
+        </div>
+        <!-- 汉堡菜单按钮 -->
+        <div id="menuButton">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+
+        <!-- 下拉菜单 -->
+        <div id="dropdownMenu">
+            <div class="menu-item" id="menuCamera">
+                <span class="menu-item-icon">⇄</span>
+                <span>Switch Camera</span>
+            </div>
+            <div class="menu-item" id="menuAudio">
+                <span class="menu-item-icon">🔊</span>
+                <span>Disable Audio</span>
+            </div>
+            <div class="menu-item" id="menuSettings">
+                <span class="menu-item-icon">⚙️</span>
+                <span>Settings</span>
+            </div>
+            <div class="menu-item" id="menuAbout">
+                <span class="menu-item-icon">ℹ️</span>
+                <span>About</span>
+            </div>
+            <div class="menu-item" id="menuInstall" style="display: none;">
+                <span class="menu-item-icon">📱</span>
+                <span>Add to Home Screen</span>
+            </div>
+            <a class="menu-item" href="tts.html">
+                <span class="menu-item-icon">📄</span>
+                <span>TTS Tool</span>
+            </a>
+            <a class="menu-item" href="asr.html">
+                <span class="menu-item-icon">📄</span>
+                <span>ASR Tool</span>
+            </a>
+        </div>
+
+        <!-- 底部控制栏 -->
+        <div id="bottomControls">
+            <div class="control-button" id="cameraToggle" title="Switch camera">⇄</div>
+            <div class="control-button" id="uploadButton" title="Upload image">📁</div>
+            <div class="control-button" id="audioStatus" title="Toggle audio">🔊</div>
+        </div>
+
+        <div id="mirrorToggle" style="display:none"></div>
+        <div id="ttsButton" style="display:none"></div>
+        <div id="settingsButton" style="display:none"></div>
+        <input type="file" id="imageUpload" accept="image/*">
+        <button id="startButton" class="start" disabled>Loading...</button>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="settingsPanel">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>⚙️ Settings</h2>
+                <button class="settings-close" id="settingsClose">×</button>
+            </div>
+
+            <div class="settings-section">
+                <h3>⚡ Auto-Save Settings</h3>
+                <p style="font-size: 13px; color: #999; margin-bottom: 15px;">
+                    Changes are saved automatically
+                </p>
+
+                <div class="settings-item">
+                    <div class="settings-item-label">
+                        <strong>Device Preference</strong>
+                        <div class="settings-item-desc">Choose how to run the AI model</div>
+                    </div>
+                    <select id="deviceSelect" class="device-select">
+                        <option value="auto">Auto (WebGPU → WASM)</option>
+                        <option value="webgpu">WebGPU (GPU Accelerated)</option>
+                        <option value="wasm">WASM (CPU Mode)</option>
+                    </select>
+                </div>
+
+                <div class="settings-item">
+                    <div class="settings-item-label">
+                        <strong>HuggingFace Mirror</strong>
+                        <div class="settings-item-desc">Enable mirror for faster downloads in China (experimental)</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="mirrorToggleInput">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Offline Model Import (Experimental)</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                    If download fails, you can download files manually (e.g. using IDM/Thunder) and import them here.
+                    <br>
+                    <a href="https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct/tree/main" target="_blank" style="color: #667eea;">Download Vision Files</a> | 
+                    <a href="https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/tree/main" target="_blank" style="color: #667eea;">Download TTS Files</a> | 
+                    <a href="https://huggingface.co/Xenova/whisper-base/tree/main" target="_blank" style="color: #667eea;">Download ASR Files</a>
+                </p>
+
+                <div class="settings-item" style="display: block;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <strong>Vision Model (SmolVLM)</strong>
+                        <span id="visionStatus" style="font-size: 12px;">Checking...</span>
+                    </div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 8px;">
+                        Required: config.json, tokenizer.json, onnx/model_fp16.onnx (or model.onnx)
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="visionFiles" multiple accept=".json,.onnx,.wasm" style="font-size: 12px; max-width: 200px;">
+                        <button id="importVisionBtn" class="settings-save" style="width: auto; padding: 5px 15px; font-size: 13px; margin: 0;">Import</button>
+                    </div>
+                </div>
+
+                <div class="settings-item" style="display: block;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <strong>TTS Model (Kokoro)</strong>
+                        <span id="ttsStatus" style="font-size: 12px;">Checking...</span>
+                    </div>
+                     <div style="font-size: 12px; color: #888; margin-bottom: 8px;">
+                        Required: config.json, model.onnx
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="ttsFiles" multiple accept=".json,.onnx,.bin" style="font-size: 12px; max-width: 200px;">
+                        <button id="importTTSBtn" class="settings-save" style="width: auto; padding: 5px 15px; font-size: 13px; margin: 0;">Import</button>
+                    </div>
+                </div>
+
+                <div class="settings-item" style="display: block;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <strong>ASR Model (Whisper)</strong>
+                        <span id="asrStatus" style="font-size: 12px;">Checking...</span>
+                    </div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 8px;">
+                        Required: config.json, encoder_model.onnx, decoder_model_merged.onnx, vocab.json
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="asrFiles" multiple accept=".json,.onnx,.bin" style="font-size: 12px; max-width: 200px;">
+                        <button id="importASRBtn" class="settings-save" style="width: auto; padding: 5px 15px; font-size: 13px; margin: 0;">Import</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 视觉分隔线 -->
+            <div style="border-top: 2px solid #e0e0e0; margin: 25px 0;"></div>
+
+            <div class="settings-section">
+                <h3>💬 Prompt Settings</h3>
+                <p style="font-size: 13px; color: #999; margin-bottom: 15px;">
+                    Click "Save & Apply" after selecting
+                </p>
+
+                <div class="prompt-option" data-prompt="default">
+                    <input type="radio" name="prompt" id="prompt-default" value="default">
+                    <label for="prompt-default">
+                        <div class="prompt-label">Default</div>
+                        <div class="prompt-text">Describe this image in 2-3 concise sentences.</div>
+                    </label>
+                </div>
+
+                <div class="prompt-option" data-prompt="brief">
+                    <input type="radio" name="prompt" id="prompt-brief" value="brief">
+                    <label for="prompt-brief">
+                        <div class="prompt-label">Brief</div>
+                        <div class="prompt-text">Describe this image briefly.</div>
+                    </label>
+                </div>
+
+                <div class="prompt-option" data-prompt="detailed">
+                    <input type="radio" name="prompt" id="prompt-detailed" value="detailed" checked>
+                    <label for="prompt-detailed">
+                        <div class="prompt-label">Detailed</div>
+                        <div class="prompt-text">Describe what you see in plain text, without any formatting or markdown. Be natural and conversational.</div>
+                    </label>
+                </div>
+
+                <div class="prompt-option" data-prompt="single">
+                    <input type="radio" name="prompt" id="prompt-single" value="single">
+                    <label for="prompt-single">
+                        <div class="prompt-label">Single Sentence</div>
+                        <div class="prompt-text">Describe in one sentence.</div>
+                    </label>
+                </div>
+
+                <div class="prompt-option" data-prompt="subject">
+                    <input type="radio" name="prompt" id="prompt-subject" value="subject">
+                    <label for="prompt-subject">
+                        <div class="prompt-label">Main Subject</div>
+                        <div class="prompt-text">What's the main subject?</div>
+                    </label>
+                </div>
+
+                <div class="prompt-option" data-prompt="custom">
+                    <input type="radio" name="prompt" id="prompt-custom" value="custom">
+                    <label for="prompt-custom">
+                        <div class="prompt-label">Custom</div>
+                        <div class="prompt-text">Write your own prompt below ↓</div>
+                    </label>
+                    <!-- Custom prompt textarea 移到这里 -->
+                    <div class="custom-prompt-section" style="margin-top: 10px; margin-left: 30px;">
+                        <textarea id="customPrompt" placeholder="Enter your custom prompt here..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <button class="settings-save" id="settingsSave">Save & Apply Prompt</button>
+        </div>
+    </div>
+
+    <!-- About 面板 -->
+    <div id="aboutPanel">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>ℹ️ About LensLore</h2>
+                <button class="settings-close" id="aboutClose">×</button>
+            </div>
+
+            <div class="settings-section">
+                <h3>Privacy & Security</h3>
+                <div class="about-text">
+                    <p>✅ <strong>100% Offline Processing</strong></p>
+                    <p>All AI models run entirely in your browser. Your images, audio, and text never leave your device.</p>
+                </div>
+
+                <div class="about-text">
+                    <p>📥 <strong>One-time Model Download</strong></p>
+                    <p>Models are downloaded from HuggingFace. Once downloaded, models are cached for offline use.</p>
+                </div>
+
+                <div class="about-text">
+                    <p>🔒 <strong>No Data Upload</strong></p>
+                    <p>We don't collect, store, or upload any of your data. Everything stays on your device.</p>
+                </div>
+            </div>
+
+            <div class="settings-section" style="text-align: center; margin-top: 20px;">
+                <p style="color: #999; font-size: 14px;">Version 1.0.11</p>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas" class="hidden"></canvas>
+
+    <!-- Service Worker 注册 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            let refreshing = false;
+            let registration = null;
+
+            // 监听 SW 的控制权变更（新 SW 激活后）
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    console.log('[PWA] New version activated, reloading...');
+                    window.location.reload();
+                }
+            });
+
+            // 监听网络状态恢复，自动检查更新
+            window.addEventListener('online', () => {
+                console.log('[PWA] Network restored, checking for updates...');
+                if (registration) {
+                    registration.update().catch((error) => {
+                        console.log('[PWA] Update check failed:', error);
+                    });
+                }
+            });
+
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then((reg) => {
+                    registration = reg;
+                    console.log('[PWA] Service Worker registered:', reg.scope);
+
+                    // 检查更新
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        console.log('[PWA] New version found, downloading...');
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // 新 SW 已安装，等待激活
+                                console.log('[PWA] New version installed, will reload shortly...');
+                                // skipWaiting() 在 sw.js 中已调用，会自动触发 controllerchange
+                            }
+                        });
+                    });
+                }).catch((error) => {
+                    console.log('[PWA] Service Worker registration failed:', error);
+                });
+            });
+        }
+    </script>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

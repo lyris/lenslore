@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Icon Converter</title>
+</head>
+<body>
+  <h2>SVG to PNG Converter</h2>
+  <div id="icons"></div>
+
+  <script>
+    const sizes = [192, 512];
+
+    sizes.forEach(size => {
+      const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆角矩形 -->
+  <rect width="${size}" height="${size}" rx="NaN" fill="url(#grad)"/>
+
+  <!-- 相机图标 -->
+  <g transform="translate(NaN, NaN)">
+    <rect x="NaN" y="NaN" width="NaN" height="NaN" rx="NaN" fill="white" opacity="0.9"/>
+    <circle cx="NaN" cy="NaN" r="NaN" fill="#667eea"/>
+    <circle cx="NaN" cy="NaN" r="NaN" fill="white"/>
+  </g>
+
+  <!-- 文字 "L" -->
+  <text x="NaN" y="NaN" font-family="Arial, sans-serif" font-size="NaN" font-weight="bold" fill="white" text-anchor="middle">L</text>
+</svg>`;
+      const img = new Image();
+      const blob = new Blob([svg], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        const link = document.createElement('a');
+        link.download = `icon-${size}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.textContent = `Download icon-${size}.png`;
+        link.style.display = 'block';
+        link.style.margin = '10px 0';
+        document.getElementById('icons').appendChild(link);
+
+        URL.revokeObjectURL(url);
+      };
+
+      img.src = url;
+    });
+  </script>
+</body>
+</html>

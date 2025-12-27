@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Browser-based text-to-speech application">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" href="data:,">
+    <title>LensLore TTS - Text to Speech</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .textarea-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            line-height: 1.6;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea::placeholder {
+            color: #aaa;
+        }
+
+        .char-count {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            font-size: 12px;
+            color: #999;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .voice-select {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        .voice-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .speed-control {
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .speed-label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .speed-value {
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        .speed-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #e0e0e0 0%, #e0e0e0 100%);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .speed-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .speed-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .speed-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #speakButton {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #speakButton:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #stopButton {
+            background: #f44336;
+            color: white;
+        }
+
+        #stopButton:hover:not(:disabled) {
+            background: #d32f2f;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+
+        #downloadButton:hover:not(:disabled) {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            display: block;
+        }
+
+        .status.ready {
+            background: #e8f5e9;
+            color: #388e3c;
+            display: block;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+
+        .status.speaking {
+            background: #fff3e0;
+            color: #f57c00;
+            display: block;
+        }
+
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        /* 只在 loading 状态下显示 spinner */
+        .status:not(.loading) .spinner {
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .voice-select,
+            .speed-control,
+            .button-group {
+                width: 100%;
+                min-width: unset;
+            }
+        }
+
+        /* 显示当前播放的文本高亮 */
+        .highlight-text {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 12px;
+            font-size: 16px;
+            line-height: 1.8;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .highlight-text.active {
+            display: block;
+        }
+
+        .highlight-text .segment {
+            display: inline;
+            transition: opacity 0.3s ease;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* 闪光扫描动画 */
+        @keyframes sweep-shine {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .highlight-text .segment.current {
+            background: linear-gradient(
+                90deg,
+                #667eea 0%,
+                #667eea 40%,
+                rgba(255, 255, 255, 0.95) 50%,
+                #764ba2 60%,
+                #764ba2 100%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: sweep-shine 2s linear infinite;
+            font-weight: 600;
+        }
+
+        .highlight-text .segment.completed {
+            color: #666;
+            font-size: 16px;
+            font-weight: 600;
+            /* 明确停止动画和重置样式 */
+            animation: none !important;
+            background: none !important;
+            -webkit-text-fill-color: inherit !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 Text to Speech</h1>
+        <p class="subtitle">Powered by Kokoro TTS (Browser-based AI)</p>
+
+        <div class="status loading" id="status">
+            <span class="spinner"></span>
+            <span id="statusText">Loading TTS model...</span>
+        </div>
+
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Initializing...</div>
+        </div>
+
+        <div class="textarea-wrapper">
+            <textarea
+                id="textInput"
+                placeholder="Enter text to speak... Try different languages! (e.g., Hello world! 你好世界！こんにちは！)"
+                disabled
+            >Hello world! This is a text-to-speech demo. You can type anything here and I will read it aloud for you. Try different languages too!</textarea>
+            <div class="char-count" id="charCount">0 characters</div>
+        </div>
+
+        <div class="controls">
+            <select class="voice-select" id="voiceSelect" disabled>
+                <!-- Voices will be loaded dynamically -->
+            </select>
+
+            <select class="voice-select" id="langSelect" disabled>
+                <option value="auto">🌐 Auto (from voice)</option>
+                <option value="a">🇺🇸 American English</option>
+                <option value="b">🇬🇧 British English</option>
+                <option value="j">🇯🇵 Japanese</option>
+                <option value="z">🇨🇳 Chinese (Mandarin)</option>
+                <option value="e">🇪🇸 Spanish</option>
+                <option value="f">🇫🇷 French</option>
+                <option value="h">🇮🇳 Hindi</option>
+                <option value="i">🇮🇹 Italian</option>
+                <option value="p">🇧🇷 Portuguese (Brazilian)</option>
+            </select>
+
+            <div class="speed-control">
+                <div class="speed-label">
+                    <span>🎚️ Speed</span>
+                    <span class="speed-value" id="speedValue">1.0x</span>
+                </div>
+                <input type="range" class="speed-slider" id="speedSlider"
+                       min="0.5" max="2.0" step="0.1" value="1.0" disabled>
+            </div>
+
+            <div class="button-group">
+                <button id="speakButton" disabled>
+                    🎤 Speak
+                </button>
+                <button id="stopButton" disabled>
+                    ⏹ Stop
+                </button>
+            </div>
+        </div>
+
+        <div class="highlight-text" id="highlightText"></div>
+
+        <div class="button-group" style="margin-top: 15px; display: none;" id="downloadSection">
+            <button id="downloadButton" style="background: #4CAF50; color: white;">
+                ⬇️ Download Audio
+            </button>
+        </div>
+
+        <div class="footer">
+            <a href="index.html">← Back to Image Recognition</a>
+        </div>
+    </div>
+
+    <!-- Service Worker 自动更新 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            let refreshing = false;
+            let registration = null;
+
+            // 监听 SW 的控制权变更（新 SW 激活后）
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    console.log('[PWA] New version activated, reloading...');
+                    window.location.reload();
+                }
+            });
+
+            // 监听网络状态恢复，自动检查更新
+            window.addEventListener('online', () => {
+                console.log('[PWA] Network restored, checking for updates...');
+                if (registration) {
+                    registration.update().catch((error) => {
+                        console.log('[PWA] Update check failed:', error);
+                    });
+                }
+            });
+
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then((reg) => {
+                    registration = reg;
+                    console.log('[PWA] Service Worker registered:', reg.scope);
+
+                    // 检查更新
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        console.log('[PWA] New version found, downloading...');
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('[PWA] New version installed, will reload shortly...');
+                            }
+                        });
+                    });
+                }).catch((error) => {
+                    console.log('[PWA] Service Worker registration failed:', error);
+                });
+            });
+        }
+    </script>
+
+    <script type="module" src="./tts-app.js"></script>
+</body>
+</html>

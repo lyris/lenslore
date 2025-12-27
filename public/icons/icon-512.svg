@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆角矩形 -->
+  <rect width="512" height="512" rx="102.4" fill="url(#grad)"/>
+
+  <!-- 相机图标 -->
+  <g transform="translate(128, 153.6)">
+    <rect x="25.6" y="51.2" width="204.8" height="153.6" rx="15.36" fill="white" opacity="0.9"/>
+    <circle cx="128" cy="128" r="40.96" fill="#667eea"/>
+    <circle cx="194.56" cy="66.56" r="10.24" fill="white"/>
+  </g>
+
+  <!-- 文字 "L" -->
+  <text x="256" y="358.4" font-family="Arial, sans-serif" font-size="204.8" font-weight="bold" fill="white" text-anchor="middle">L</text>
+</svg>

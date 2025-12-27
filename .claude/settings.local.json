@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run build:lenslore:*)",
+      "Bash(rm:*)",
+      "Bash(export HTTPS_PROXY=http://127.0.0.1:8218)",
+      "Bash(node scripts/download-models.js:*)",
+      "Bash(ls:*)",
+      "Bash(dir scriptsdownload-models.js)",
+      "Bash(node scripts/generate-icons.js:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(dir:*)",
+      "Bash(npm run dev:*)",
+      "Bash(dos2unix:*)",
+      "Bash(node -e \"import\\(''@huggingface/transformers''\\).then\\(m => { console.log\\(''env properties:'', Object.keys\\(m.env\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''cache''\\) || k.toLowerCase\\(\\).includes\\(''browser''\\)\\)\\); }\\)\")",
+      "Bash(node:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(npm view:*)",
+      "Bash(git init:*)"
+    ]
+  }
+}
