@@ -1,7 +1,7 @@
 // Service Worker for LensLore PWA
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'lenslore-1.0.0-1766839212354';
+const CACHE_NAME = 'lenslore-1.0.0-1766839901785';
 const RUNTIME_CACHE = 'lenslore-runtime';
 // transformers.js 使用自己的缓存：'transformers-cache'
 const TRANSFORMERS_CACHE = 'transformers-cache';
@@ -153,10 +153,28 @@ self.addEventListener('fetch', (event) => {
 
           // 缓存未命中，直接网络请求（transformers.js 会自动缓存）
           console.log('[SW] ⬇️  Fetching:', actualRequest.url);
-          return fetch(actualRequest).then((response) => {
+          return fetch(actualRequest).then(async (response) => {
             // 缓存响应（使用原始请求 URL 作为 key）
+            // 重要：必须等待缓存操作完成，确保文件完整写入或完全不写入
             if (response && response.status === 200) {
-              cache.put(request, response.clone());
+              try {
+                // 克隆响应用于缓存（原始响应返回给调用者）
+                const responseToCache = response.clone();
+
+                // 等待缓存操作完成（原子性保证）
+                await cache.put(request, responseToCache);
+                console.log('[SW] ✅ Cached model file:', url.pathname);
+              } catch (error) {
+                // 缓存失败，删除可能不完整的条目
+                console.error('[SW] ❌ Failed to cache model file:', url.pathname, error);
+                try {
+                  await cache.delete(request);
+                  console.log('[SW] 🗑️  Deleted incomplete cache entry');
+                } catch (deleteError) {
+                  console.error('[SW] Failed to delete incomplete cache:', deleteError);
+                }
+                // 继续返回响应给调用者（即使缓存失败）
+              }
             }
             return response;
           }).catch((error) => {
