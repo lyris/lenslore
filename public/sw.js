@@ -1,7 +1,7 @@
 // Service Worker for LensLore PWA
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'lenslore-1.0.0-1766836676826';
+const CACHE_NAME = 'lenslore-1.0.0-1766839212354';
 const RUNTIME_CACHE = 'lenslore-runtime';
 // transformers.js 使用自己的缓存：'transformers-cache'
 const TRANSFORMERS_CACHE = 'transformers-cache';
@@ -35,17 +35,25 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching core assets');
-      // 逐个添加，避免某个文件失败导致整个安装失败
-      return Promise.allSettled(
+      // 使用 Promise.all() 严格模式：所有文件必须成功缓存，否则安装失败
+      // 这样可以避免部分缓存导致应用异常
+      return Promise.all(
         CORE_ASSETS.map(url =>
-          cache.add(url).catch(err => {
-            console.warn(`[SW] Failed to cache ${url}:`, err);
+          cache.add(url).then(() => {
+            console.log(`[SW] ✅ Cached: ${url}`);
+          }).catch(err => {
+            console.error(`[SW] ❌ Failed to cache ${url}:`, err);
+            throw err; // 重新抛出错误，导致整个安装失败
           })
         )
       );
     }).then(() => {
+      console.log('[SW] ✅ All core assets cached successfully');
       // 强制激活新的 Service Worker
       return self.skipWaiting();
+    }).catch((error) => {
+      console.error('[SW] ❌ Installation failed:', error);
+      throw error; // 安装失败，浏览器会在稍后重试
     })
   );
 });
@@ -63,19 +71,50 @@ self.addEventListener('activate', (event) => {
   ];
 
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    // 第一步：检查新缓存的完整性
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Checking cache completeness...');
+      // 检查所有核心资源是否都已缓存
       return Promise.all(
-        cacheNames
-          .filter((name) => !preservedCaches.includes(name))
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => {
-      console.log('[SW] Preserved model caches:', preservedCaches.slice(2).join(', '));
-      // 立即接管所有页面
-      return self.clients.claim();
+        CORE_ASSETS.map(url => cache.match(url))
+      ).then((responses) => {
+        const missingAssets = [];
+        CORE_ASSETS.forEach((url, index) => {
+          if (!responses[index]) {
+            missingAssets.push(url);
+          }
+        });
+
+        if (missingAssets.length > 0) {
+          console.warn('[SW] ⚠️ Cache incomplete! Missing assets:', missingAssets);
+          console.warn('[SW] ⚠️ Keeping old cache to prevent app breakage');
+          return false; // 缓存不完整
+        }
+
+        console.log('[SW] ✅ Cache is complete, safe to delete old caches');
+        return true; // 缓存完整
+      });
+    }).then((isCacheComplete) => {
+      // 第二步：只有在新缓存完整的情况下才删除旧缓存
+      if (!isCacheComplete) {
+        console.log('[SW] Skipping old cache deletion due to incomplete new cache');
+        return self.clients.claim();
+      }
+
+      return caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => !preservedCaches.includes(name))
+            .map((name) => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      }).then(() => {
+        console.log('[SW] Preserved model caches:', preservedCaches.slice(2).join(', '));
+        // 立即接管所有页面
+        return self.clients.claim();
+      });
     })
   );
 });
